@@ -1,16 +1,23 @@
 # xiaotian
 
-A new Flutter project.
+微北洋上的小天老师AI
 
-## Getting Started
+## 内容
 
-This project is a starting point for a Flutter application.
+| 文件夹 | 内容 |
+|--|--|
+| model | 一些具体功能相关的代码 |
+| view | 页面UI |
 
-A few resources to get you started if this is your first Flutter project:
+## model
+- xiaotian_dio.dart ai的网络请求代码
+- xiaotian_state.dart 一些内容相关的状态
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## view
+### page
+- xiaotian_page.dart 小天ai的主体页面
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### widget
+- bubble_widget.dart 聊天的气泡，分为用户气泡和ai气泡，适配SSE流式响应的stream流气泡待添加
+- chat_widget.dart 聊天界面
+- history_widget 历史记录的侧边栏，待完成
