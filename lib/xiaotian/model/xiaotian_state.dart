@@ -5,10 +5,37 @@ class xiaotianInputState extends ChangeNotifier {
   List<String> files = [];        //文件url
   String searchTime = 'onLimit';         //搜索时间范围
   String searchType = 'precise';         //搜索类型
-  FocusNode node = FocusNode();
-  TextEditingController textController = TextEditingController();
+  String searchTime_ch = '不限';
+  String searchType_ch = '官网搜索';
+  final FocusNode node = FocusNode();
+  final TextEditingController textController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
+
+  final _time = ['oneWeek','oneMonth','oneYear','noLimit'];
+  final _time_ch = ['一周内','一月内','一年内','不限'];
+  final _type = ['no','all','precise'];
+  final _type_ch = ['不搜索','全网搜索','官网搜索'];
 
   xiaotianInputState();
+
+  void changeTime(int i) {
+    searchTime = _time[i];
+    searchTime_ch = _time_ch[i];
+    notifyListeners();
+  }
+
+  void changeType(int i) {
+    searchType = _type[i];
+    searchType_ch = _type_ch[i];
+    notifyListeners();
+  }
+
+  void resetSearch() {
+    searchTime = 'noLimit';
+    searchTime_ch = '不限';
+    searchType = 'precise';
+    searchType_ch = '官网搜索';
+  }
 
   //发送完之后清除输入状态
   void clear() {
@@ -23,6 +50,17 @@ class xiaotianInputState extends ChangeNotifier {
   //让焦点失焦
   void unfocus() {
     node.unfocus();
+  }
+
+  void scrollToEnd()
+  {
+    if (scrollController.hasClients) {
+      scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   //返回一个message
@@ -60,7 +98,7 @@ class xiaotianChatState extends ChangeNotifier {
   // 获取当前会话消息
   List<Map<String, dynamic>> get messages => _sessions[_sessionId] ?? [];
 
-  //获得搜索历史
+  //获得历史会话记录
   List<Map<String, dynamic>> get historySession => _historySession;
 
   // 获取当前 sessionId
