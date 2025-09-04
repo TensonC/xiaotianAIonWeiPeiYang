@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../model/xiaotian_state.dart';
 
 
 class bubbleFromAi extends StatefulWidget {
@@ -59,6 +61,8 @@ class _bubbleFromAiState extends State<bubbleFromAi> {
                 icon: const Icon(Icons.refresh_rounded, size: 25),
                 onPressed: (){
                   //TODO:重新生成回答,即再往后端发一次
+                  ///dio
+
                 },
               ),
             ],
@@ -115,6 +119,7 @@ class bubbleFromUser extends StatelessWidget {
                 icon: const Icon(Icons.edit, size: 25),
                 onPressed: (){
                   //TODO:重新编辑问题
+                  context.read<xiaotianInputState>().onEdit(text);
                 },
               ),
             ],

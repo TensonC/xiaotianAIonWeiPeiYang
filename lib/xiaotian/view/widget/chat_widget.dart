@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:xiaotian/xiaotian/view/widget/bubble_widget.dart';
 import '../widget/bubble_widget.dart';
 import '../../model/xiaotian_state.dart';
 import 'package:provider/provider.dart';
 
-Widget openNewChatButton()
-{
-  return IconButton(
-      onPressed: (){
-        //打开一个新页面
-      },
-      icon: const Icon(Icons.add)
-  );
+class openNewSession extends StatelessWidget {
+  const openNewSession({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+        onPressed: (){
+          //打开一个新页面
+          context.read<xiaotianChatState>().openNewSession();
+        },
+        icon: const Icon(Icons.add)
+    );
+  }
 }
+
 
 //开启新页面的占位贴图
 class newChatTile extends StatelessWidget {
@@ -80,6 +85,7 @@ class _ChatTileState extends State<ChatTile> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBottom();
         });
+      //TODO:AI的流式响应气泡
         return ListView.builder(
             controller: _scrollController,
             itemCount: chatState.messages.length,
@@ -106,20 +112,9 @@ class inputBox extends StatefulWidget {
 }
 
 class _inputBoxState extends State<inputBox> {
-  final FocusNode _focusNode = FocusNode();
-  final _textController = TextEditingController();
-
-  void onEdit(String content) {
-    _textController.text = content;
-    _focusNode.hasFocus;
-  }
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
+  bool isSearch = false;
+  int i1 = 0;
+  int i2 = 0;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -134,9 +129,9 @@ class _inputBoxState extends State<inputBox> {
         children: [
           //发消息
           TextField(
-            controller: _textController,
-            focusNode: _focusNode,
-            onTapOutside: (e) => _focusNode.unfocus(),
+            controller: context.watch<xiaotianInputState>().textController,
+            focusNode: context.watch<xiaotianInputState>().node,
+            onTapOutside: (e) => context.read<xiaotianInputState>().unfocus(),
             keyboardType: TextInputType.multiline,
             maxLines: 2,
             decoration: const InputDecoration(
@@ -151,21 +146,34 @@ class _inputBoxState extends State<inputBox> {
             children: [
               IconButton(
                   onPressed: () {
-                    //添加联网搜索
+                    //TODO:设置联网搜索
+
                   },
                   icon: const Icon(Icons.language_rounded)),
               Row(
                 children: [
                   IconButton(
                       onPressed: (){
-                        //添加链接文件
+                        //TODO:添加链接文件
+
                       },
                       icon: const Icon(Icons.link_off_rounded)
                   ),
                   IconButton(
-                      onPressed: (){
-                        //发送
-                        xiaotianChatState().messageAdd({"role":"user","file":false,"content":_textController.text});
+                      onPressed:(){
+                        //TODO:把消息发给后端
+                        if(context.read<xiaotianChatState>().sessionId == '0')
+                          {
+                            ///如果会话id为0，先获得会话id，再设置会话
+                            ///final id = getSessionId
+                            context.read<xiaotianChatState>().setSessionId('id');
+                          }
+                        //再发送给后端
+                        ///dio
+                        //再添加消息
+                        final mes = context.read<xiaotianInputState>().makeMessage();
+                        context.read<xiaotianChatState>().messageAdd(mes);
+                        context.read<xiaotianInputState>().clear();
                       },
                       icon: const Icon(Icons.send_rounded)
                   )

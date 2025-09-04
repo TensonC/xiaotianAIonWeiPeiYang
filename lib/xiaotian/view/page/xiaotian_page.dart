@@ -14,10 +14,23 @@ class XiaoTian_Page extends StatefulWidget {
 class _XiaoTian_PageState extends State<XiaoTian_Page> {
 
   @override
+  void initState() {
+    //TODO:刚进入时，获取一个新会话,开启一个新页面
+    ///context.read<xiaotianChatState>().setSessionId(id);
+    super.initState();
+  }
+
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: Builder(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => xiaotianChatState()),
+        ChangeNotifierProvider(create: (_) => xiaotianInputState()),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          leading: Builder(
             builder: (context) {
               return IconButton(
                 icon: const Icon(Icons.dashboard_rounded),
@@ -25,32 +38,26 @@ class _XiaoTian_PageState extends State<XiaoTian_Page> {
                   Scaffold.of(context).openDrawer();
                 },
               );
-            }
+            },
+          ),
+          actions: const [openNewSession()],
         ),
-        actions: [
-          openNewChatButton()
-        ],),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
+        drawer: const historyDrawer(),
+        body: Column(
           children: [
-            drawerHeader(),
-            ...List.generate(10, (index) => historyTab(context, index)),
+            Expanded(
+              child: Consumer<xiaotianChatState>(
+                builder: (context, chatState, _) {
+                  return chatState.sessionId == '0'
+                      ? const newChatTile()
+                      : const ChatTile();
+                },
+              ),
+            ),
+            //输入框
+            const SafeArea(child: inputBox()),
           ],
         ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: xiaotianChatState().messages.isNotEmpty ?
-            ChangeNotifierProvider<xiaotianChatState>.value(
-              value: xiaotianChatState(),
-              child: const ChatTile(),) : const newChatTile(),
-          ),
-          const SafeArea(
-              child: inputBox()
-          )
-        ],
       ),
     );
   }
