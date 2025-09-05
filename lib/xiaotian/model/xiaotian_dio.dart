@@ -1,6 +1,6 @@
-import 'package:dio/dio.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 
 /// ================ 模型 =================
 class ChatEvent {
@@ -52,7 +52,7 @@ class ChatMessage {
       : role = m['role'],
         content = m['content'],
         file = m['file'] == true,
-        likeCount = int.tryParse(m['likeCount'] ?? '0') ?? 0,
+        likeCount = int.tryParse(m['likeCount']?.toString() ?? '0') ?? 0,
         traceId = m['trace_id'];
   Map<String, dynamic> toJson() => {
         'role': role,
@@ -69,21 +69,26 @@ class AiTjuApi {
   static final _instance = AiTjuApi._();
   factory AiTjuApi() => _instance;
 
-  final Dio dio = Dio(BaseOptions(
-    baseUrl: 'https://student.tju.edu.cn/ai', // 换成真实域名
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 120),
-  ))
-    ..interceptors.addAll([
-      // PrettyDioLogger(requestBody: true, responseBody: false),
+  final Dio dio = Dio(
+    BaseOptions(
+      baseUrl: 'https://student.tju.edu.cn/ai', // 保持与现有地址一致
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 120),
+    ),
+  )..interceptors.addAll([
       InterceptorsWrapper(onRequest: (opt, handler) {
-        // 统一加 token 可在这里
+        opt.headers.putIfAbsent('Accept', () => 'text/event-stream');
         return handler.next(opt);
       }),
     ]);
 
+  /// Cho phép cập nhật header mặc định (Cookie/Authorization...) nếu muốn
+  void updateDefaultHeaders(Map<String, String> headers) {
+    dio.options.headers.addAll(headers);
+  }
+
   /* ============== 1. SSE 流式对话 ============== */
-  /// 返回 Stream<ChatEvent>，调用方 listen 即可逐字渲染
+  /// Trả về Stream<ChatEvent> để render realtime
   Stream<ChatEvent> streamChat({
     required String prompt,
     required String sessionId,
@@ -91,44 +96,137 @@ class AiTjuApi {
     List<String>? files,
     String? searchTime,
     String? searchType,
+    Map<String, String>? headers, // header
   }) async* {
-    final form = FormData.fromMap({
+    final params = <String, dynamic>{
       'prompt': prompt,
       'sessionId': sessionId,
       'userId': userId,
       if (files != null) 'files': files,
       if (searchTime != null) 'searchTime': searchTime,
       if (searchType != null) 'searchType': searchType,
-    });
+    };
 
-    // Dio 流式响应
     final rs = await dio.get(
-      // ← 注意用 post
       '/ai-api/ai/stream',
-      data: form, // 整个 FormData 当 body
-      options: Options(responseType: ResponseType.stream),
+      queryParameters: params,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: headers,
+      ),
     );
 
-    // await for (final chunk in rs.data.stream) {
-    //   final lines = utf8.decode(chunk).split('\n');
-    //   for (final line in lines) {
-    //     if (line.startsWith('data: ')) {
-    //       final raw = line.substring(6);
-    //       if (raw == '[DONE]') continue;
-    //       final map = jsonDecode(raw);
-    //       if (map['token'] != null) yield ChatEvent.token(map['token']);
-    //       if (map['source'] != null) {
-    //         yield ChatEvent.source((map['source'] as List)
-    //             .map((e) => Source.fromJson(e))
-    //             .toList());
-    //       }
-    //       if (map['followup'] != null)
-    //         yield ChatEvent.followup(map['followup']);
-    //       if (map['trace_id'] != null) yield ChatEvent.traceId(map['trace_id']);
-    //       if (map['error'] != null) yield ChatEvent.error(map['error']);
-    //     }
-    //   }
-    // }
+    // stream bytes -> utf8 ->  SSE
+
+    final lines = rs.data.stream
+        .cast<List<int>>() // Stream<Uint8List> -> Stream<List<int>>
+        .transform(utf8.decoder) // -> Stream<String>
+        .transform(const LineSplitter()); // -> Stream<String> each lines
+
+    final eventData = StringBuffer();
+
+    await for (final line in lines) {
+      if (line.isEmpty) {
+        final dataStr = eventData.toString();
+        eventData.clear();
+        if (dataStr.isEmpty) continue;
+        if (dataStr == '[DONE]') break;
+        try {
+          final map = jsonDecode(dataStr);
+          if (map['token'] != null) yield ChatEvent.token(map['token']);
+          if (map['source'] != null) {
+            final list = (map['source'] as List)
+                .map((e) => Source.fromJson(e as Map<String, dynamic>))
+                .toList();
+            yield ChatEvent.source(list);
+          }
+          if (map['followup'] != null) {
+            yield ChatEvent.followup(map['followup'].toString());
+          }
+          if (map['trace_id'] != null) {
+            yield ChatEvent.traceId(map['trace_id'].toString());
+          }
+          if (map['error'] != null) {
+            yield ChatEvent.error(map['error'].toString());
+          }
+        } catch (_) {}
+        continue;
+      }
+
+      if (line.startsWith('data:')) {
+        final payload = line.length >= 5 ? line.substring(5).trimLeft() : '';
+        if (payload.isNotEmpty) {
+          if (eventData.isNotEmpty) eventData.write('\n');
+          eventData.write(payload);
+        }
+      } else {
+        print('不是data');
+      }
+    }
+  }
+
+  /// ============== 1b. Fetch full Answer 链接token==============
+  /// Return fullText (token) + rawSse (所有 SSE ）
+  Future<({String fullText, String rawSse})> fetchFullAnswer({
+    required String prompt,
+    required String sessionId,
+    required String userId,
+    List<String>? files,
+    String? searchTime,
+    String? searchType,
+    Map<String, String>? headers,
+  }) async {
+    final params = <String, dynamic>{
+      'prompt': prompt,
+      'sessionId': sessionId,
+      'userId': userId,
+      if (files != null) 'files': files,
+      if (searchTime != null) 'searchTime': searchTime,
+      if (searchType != null) 'searchType': searchType,
+    };
+
+    final rs = await dio.get(
+      '/ai-api/ai/stream',
+      queryParameters: params,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: headers,
+      ),
+    );
+
+    final stringStream = utf8.decoder.bind(rs.data.stream.cast<List<int>>());
+    final lines = const LineSplitter().bind(stringStream);
+
+    final full = StringBuffer();
+    final raw = StringBuffer();
+    final eventData = StringBuffer();
+
+    await for (final line in lines) {
+      raw.writeln(line);
+
+      if (line.isEmpty) {
+        final dataStr = eventData.toString();
+        eventData.clear();
+        if (dataStr.isEmpty) continue;
+        if (dataStr == '[DONE]') break;
+        try {
+          final map = jsonDecode(dataStr);
+          final token = map['token'];
+          if (token is String) full.write(token);
+        } catch (_) {}
+        continue;
+      }
+
+      if (line.startsWith('data:')) {
+        final payload = line.length >= 5 ? line.substring(5).trimLeft() : '';
+        if (payload.isNotEmpty) {
+          if (eventData.isNotEmpty) eventData.write('\n');
+          eventData.write(payload);
+        }
+      }
+    }
+
+    return (fullText: full.toString(), rawSse: raw.toString());
   }
 
   /* ============== 2. 历史会话列表 ============== */
@@ -145,8 +243,10 @@ class AiTjuApi {
     required String sessionId,
     required String userId,
   }) async {
-    final rs = await dio.get('/ai-api/ai/get_conversation',
-        queryParameters: {'sessionId': sessionId, 'userId': userId});
+    final rs = await dio.get(
+      '/ai-api/ai/get_conversation',
+      queryParameters: {'sessionId': sessionId, 'userId': userId},
+    );
     final list = (jsonDecode(rs.data['msg']) as List)
         .map((e) => ChatMessage.fromJson(e))
         .toList();
