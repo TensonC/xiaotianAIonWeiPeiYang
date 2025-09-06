@@ -18,7 +18,7 @@ Future<void> main() async {
   });
   final userId = "6323000439";
   final prompt = "你是谁？";
-  final buffer = StringBuffer();
+  final buffer = StringBuffer()
 
   // Example: test history chat
   // final sessions = await api.getAllSessions(userId);
